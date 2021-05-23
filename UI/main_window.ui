@@ -95,7 +95,6 @@
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources>
-  <include location="../Resources/Images/try.qrc"/>
   <include location="../test.qrc"/>
  </resources>
  <connections/>

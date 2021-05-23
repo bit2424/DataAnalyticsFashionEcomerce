@@ -66,9 +66,9 @@ class PriceModel:
         # https://www.kaggle.com/jmmvutu/summer-products-and-sales-in-ecommerce-wish
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- ORIGINAL ---------------------------->>>\n\n" + pcolors.ENDC)
-        df_interesting = self.extract_interesting_features(df)
+        df_interesting = self.extract_interesting_features(self,df)
         print(df_interesting.shape)
-        self.plot_missing_data(df_interesting)
+        self.plot_missing_data(self,df_interesting)
         self.clean(df_interesting)
         """Para ver la calidad de las variables que escogimos decidimos ver el indice de correlación que tienen respecto al precio de venta."""
         self.print_correlation_map(df_interesting, 'price')
