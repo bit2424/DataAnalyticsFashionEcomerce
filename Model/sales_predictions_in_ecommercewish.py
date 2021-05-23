@@ -16,6 +16,7 @@ El primer paso es importar todas las librerias necesarias para el procesamiento 
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from joblib import dump
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -49,19 +50,33 @@ class SalesModel:
         # https://www.kaggle.com/jmmvutu/summer-products-and-sales-in-ecommerce-wish
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- ORIGINAL ---------------------------->>>\n\n" + pcolors.ENDC)
-        self.df_interesting = Commons.extract_interesting_features(self.df)
+        self.df_interesting = Commons.extract_interesting_features(self.df,"units_sold")
 
     def execute(self):
         Commons.plot_missing_data(self.df_interesting)
         Commons.clean(self.df_interesting)
-        Commons.print_correlation_map(self.df_interesting, 'units_sold')
-        Commons.plot_colors_vs_feature(self.df_interesting, 'units_sold')
+        Commons.print_correlation_map(self.df_interesting, "units_sold")
+        Commons.plot_colors_vs_feature(self.df_interesting, "units_sold")
         self.df_interesting = Commons.one_hot_encode(self.df_interesting)
 
         # correlation again
-        Commons.print_correlation_map(self.df_interesting, 'price')
-        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting)
+        Commons.print_correlation_map(self.df_interesting, 'units_sold')
+        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting,"units_sold")
         self.models_creation()
+
+    def createModel(self,X_train,y_train,X_test,y_test):
+            print(
+            pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- Final Model evaluation ----------------------------\n" + pcolors.ENDC)
+            temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
+            temp_model.fit(X_train, y_train)
+            dump(temp_model, './Resources/Persistence/sModel.joblib') 
+            cv_results = cross_val_score(temp_model,X_test,y_test,cv=5,n_jobs=-1)
+            # output:
+            min_score = round(min(cv_results),4)
+            max_score = round(max(cv_results),4)
+            mean_score = round(np.mean(cv_results),4)
+            std_dev = round(np.std(cv_results),4)
+            print(f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
 
     def models_creation(self):
         """# Creación de modelos
@@ -76,26 +91,29 @@ class SalesModel:
         Y = self.df_interesting['units_sold']
         trainig_size = 0.6
         testing_size = 1 - trainig_size
-        random_seed = 42
-        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=testing_size, random_state=random_seed,
+        self.random_seed = 42
+        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=testing_size, random_state=self.random_seed,
                                                             shuffle=True)
-        X_test, X_test_hp, y_test, y_test_hp = train_test_split(X, Y, test_size=0.5, random_state=random_seed,
+        X_test, X_test_hp, y_test, y_test_hp = train_test_split(X, Y, test_size=0.5, random_state=self.random_seed,
                                                                 shuffle=True)
+
+        y_test.to_pickle("./Resources/Datasets/Y_test.pkl")
+        X_test.to_pickle("./Resources/Datasets/X_test.pkl")
 
         """En esta etapa escogemos algunos modelos que queremos entrenar y ver cómo se comportan con los datos de entrada.
         
         Escogemos una estrategía de validación cruzada para validar los resultados que obtenemos al entrenar los modelos.
         """
 
-        base_models = [('DT_model', DecisionTreeClassifier(random_state=random_seed)),
-                       ('RF_model', RandomForestClassifier(random_state=random_seed, n_jobs=-1)),
-                       ('LR_model', LogisticRegression(random_state=random_seed, n_jobs=-1)),
-                       ("XGB_model", XGBClassifier(random_state=random_seed, n_jobs=-1)),
-                       ("ETR_model", ExtraTreesRegressor(n_estimators=20, random_state=random_seed))]
+        base_models = [('DT_model', DecisionTreeClassifier(random_state=self.random_seed)),
+                       ('RF_model', RandomForestClassifier(random_state=self.random_seed, n_jobs=-1)),
+                       ('LR_model', LogisticRegression(random_state=self.random_seed, n_jobs=-1)),
+                       ("XGB_model", XGBClassifier(random_state=self.random_seed, n_jobs=-1)),
+                       ("ETR_model", ExtraTreesRegressor(n_estimators=20, random_state=self.random_seed))]
         # Dividir los datos en partes 'kfolds' para la validación cruzada
         # utilizar la random shufle para garantizar la distribución aleatoria de los datos
-        kfolds = 5
-        split = KFold(n_splits=kfolds, shuffle=True, random_state=random_seed)
+        self.kfolds = 5
+        split = KFold(n_splits=self.kfolds, shuffle=True, random_state=self.random_seed)
 
         # Preprocesamiento, entrenamiento y calificación para cada uno de los modelos que escogimos:
         for name, model in base_models:
@@ -121,12 +139,12 @@ class SalesModel:
         # mean_score = round(np.mean(cv_results),4)
         # std_dev = round(np.std(cv_results),4)
         # print(f'{name} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
-
+        """
         x_vals = []
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 30):
-            temp_model = ExtraTreesRegressor(n_estimators=i, random_state=random_seed)
+            temp_model = ExtraTreesRegressor(n_estimators=i, random_state=self.random_seed)
             temp_model.fit(X_train, y_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -137,12 +155,13 @@ class SalesModel:
         # print(y_scores)
         print(X_test_hp.columns)
         print(temp_model.feature_importances_)
-
+        
+        
         x_vals = []
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 30):
-            temp_model = DecisionTreeClassifier(random_state=random_seed, max_depth=i)
+            temp_model = DecisionTreeClassifier(random_state=self.random_seed, max_depth=i)
             temp_model.fit(X_train, y_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -157,7 +176,7 @@ class SalesModel:
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 40):
-            temp_model = XGBClassifier(random_state=random_seed, n_jobs=-1, n_estimators=i)
+            temp_model = XGBClassifier(random_state=self.random_seed, n_jobs=-1, n_estimators=i)
             temp_model.fit(X_train, y_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -168,17 +187,13 @@ class SalesModel:
         # print(y_scores)
         print(X_test_hp.columns)
         print(temp_model.feature_importances_)
-
+        """
         """Al final evaluamos el mejor modelo con los datos de testing, para ver cómo nos va. """
 
-        temp_model = ExtraTreesRegressor(n_estimators=30, random_state=random_seed)
-        temp_model.fit(X_train, y_train)
-        cv_results = cross_val_score(temp_model, X_test, y_test, cv=split, n_jobs=-1)
-        # output:
-        min_score = round(min(cv_results), 4)
-        max_score = round(max(cv_results), 4)
-        mean_score = round(np.mean(cv_results), 4)
-        std_dev = round(np.std(cv_results), 4)
-        print(f'{name} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
+        
+        self.createModel(X_train,y_train,X_test,y_test)
+        
 
         """El modelo tuvo un resultado que todavía puede mejorar, somos capaces de predecir la cantidad vendida adecuada casí un 40% de las veces, si bien no es ideal es una guia bastante buena que pude seguir mejorando."""
+        
+        

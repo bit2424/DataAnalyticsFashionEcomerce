@@ -15,6 +15,7 @@ El primer paso es importar todas las librerias necesarias para el procesamiento 
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from joblib import dump
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -49,7 +50,7 @@ class PriceModel:
         # https://www.kaggle.com/jmmvutu/summer-products-and-sales-in-ecommerce-wish
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- ORIGINAL ---------------------------->>>\n\n" + pcolors.ENDC)
-        self.df_interesting = Commons.extract_interesting_features(self.df)
+        self.df_interesting = Commons.extract_interesting_features(self.df,"price")
 
     def execute(self):
         Commons.plot_missing_data(self.df_interesting)
@@ -60,7 +61,7 @@ class PriceModel:
         self.df_interesting = Commons.one_hot_encode(self.df_interesting)
         # correlation again
         Commons.print_correlation_map(self.df_interesting, 'price')
-        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting)
+        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting,"price")
         self.models_creation(self.df_interesting, 'price')
         """# Identificar una lista de atributos a utilizar:
         
@@ -70,32 +71,46 @@ class PriceModel:
     shipping_option_name,shipping_option_price,shipping_is_express,countries_shipped_to,inventory_total,origin_country,merchant_title,merchant_name,
     merchant_info_subtitle,merchant_has_profile_picture,merchant_profile_picture,product_picture
     """
+    def createModel(self,X_train,y_train,X_test,y_test):
+            print(
+            pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- Final Model evaluation ----------------------------\n" + pcolors.ENDC)
+            temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
+            temp_model.fit(X_train, y_train)
+            dump(temp_model, './Resources/Persistence/pModel.joblib') 
+            cv_results = cross_val_score(temp_model,X_test,y_test,cv=5,n_jobs=-1)
+            # output:
+            min_score = round(min(cv_results),4)
+            max_score = round(max(cv_results),4)
+            mean_score = round(np.mean(cv_results),4)
+            std_dev = round(np.std(cv_results),4)
+            print(f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
 
     def models_creation(self, df, col):
         X = df.drop([col], axis=1)
         Y = df[col].astype(int)
         trainig_size = 0.6
         testing_size = 1 - trainig_size
-        random_seed = 42
-        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=testing_size, random_state=random_seed,
+        self.random_seed = 42
+        X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=testing_size, random_state=self.random_seed,
                                                             shuffle=True)
-        X_test, X_test_hp, y_test, y_test_hp = train_test_split(X, Y, test_size=0.5, random_state=random_seed,
+        X_test, X_test_hp, y_test, y_test_hp = train_test_split(X, Y, test_size=0.5, random_state=self.random_seed,
                                                                 shuffle=True)
+
 
         """En esta etapa escogemos algunos modelos que queremos entrenar y ver cómo se comportan con los datos de entrada.
 
-    Escogemos una estrategía de validación cruzada para validar los resultados que obtenemos al entrenar los modelos.
-    """
+        Escogemos una estrategía de validación cruzada para validar los resultados que obtenemos al entrenar los modelos.
+        """
 
-        base_models = [('DT_model', DecisionTreeClassifier(random_state=random_seed)),
-                       ('RF_model', RandomForestClassifier(random_state=random_seed, n_jobs=-1)),
-                       ('LR_model', LogisticRegression(random_state=random_seed, n_jobs=-1)),
-                       ("XGB_model", XGBClassifier(random_state=random_seed, n_jobs=-1)),
-                       ("ETR_model", ExtraTreesRegressor(n_estimators=20, random_state=random_seed))]
+        base_models = [('DT_model', DecisionTreeClassifier(random_state=self.random_seed)),
+                       ('RF_model', RandomForestClassifier(random_state=self.random_seed, n_jobs=-1)),
+                       ('LR_model', LogisticRegression(random_state=self.random_seed, n_jobs=-1)),
+                       ("XGB_model", XGBClassifier(random_state=self.random_seed, n_jobs=-1)),
+                       ("ETR_model", ExtraTreesRegressor(n_estimators=20, random_state=self.random_seed))]
         # split data into 'kfolds' parts for cross validation,
         # use shuffle to ensure random distribution of data:
-        kfolds = 4
-        split = KFold(n_splits=kfolds, shuffle=True, random_state=random_seed)
+        self.kfolds = 5
+        split = KFold(n_splits=self.kfolds, shuffle=True, random_state=self.random_seed)
 
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- MODELS COMPARISON ----------------------------\n" + pcolors.ENDC)
@@ -134,7 +149,7 @@ class PriceModel:
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 30):
-            temp_model = ExtraTreesRegressor(n_estimators=i, random_state=random_seed)
+            temp_model = ExtraTreesRegressor(n_estimators=i, random_state=self.random_seed)
             temp_model.fit(X_train, X_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -146,11 +161,14 @@ class PriceModel:
         print(X_test_hp.columns)
         print(temp_model.feature_importances_)
 
+        self.createModel(X_train,y_train,X_test,y_test)
+
+        """
         x_vals = []
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 30):
-            temp_model = DecisionTreeClassifier(random_state=random_seed, max_depth=i)
+            temp_model = DecisionTreeClassifier(random_state=self.random_seed, max_depth=i)
             temp_model.fit(X_train, y_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -169,7 +187,7 @@ class PriceModel:
         y_scores = []
         # X_test.drop("prediction",axis=1)
         for i in range(1, 20):
-            temp_model = XGBClassifier(random_state=random_seed, n_jobs=-1, n_estimators=i)
+            temp_model = XGBClassifier(random_state=self.random_seed, n_jobs=-1, n_estimators=i)
             temp_model.fit(X_train, y_train)
             cv_results = cross_val_score(temp_model, X_test_hp, y_test_hp, cv=split, n_jobs=-1)
             y_predict = cv_results.mean()
@@ -181,7 +199,7 @@ class PriceModel:
         print(X_test_hp.columns)
         print(temp_model.feature_importances_)
 
-        temp_model = ExtraTreesRegressor(n_estimators=30, random_state=random_seed)
+        temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
         temp_model.fit(X_train, y_train)
         cv_results = cross_val_score(temp_model, X_test, y_test, cv=split, n_jobs=-1)
         # output:
@@ -190,6 +208,8 @@ class PriceModel:
         mean_score = round(np.mean(cv_results), 4)
         std_dev = round(np.std(cv_results), 4)
         print(f'{name} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
-
+        self.createModel(X_train,y_train,X_test,y_test)
+        """
         """El modelo tuvo un resultado decente, que todavía puede mejorar, somos capaces de predecir el precio para un producto de manera adecuada casí un 60% de las veces, es una muestra de que vamos por buen camino y que podemos aportarle valor a wish."""
 
+        

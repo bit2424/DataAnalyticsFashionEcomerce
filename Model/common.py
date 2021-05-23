@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from joblib import dump
 from matplotlib import pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import OneHotEncoder
@@ -7,16 +8,17 @@ from sklearn.preprocessing import OneHotEncoder
 
 class Commons:
     @staticmethod
-    def extract_interesting_features(df):
-        interesting_features = ["product_color", "product_variation_inventory", "shipping_is_express", "origin_country",
+    def extract_interesting_features(df,type):
+
+        if(type == "price"):
+            interesting_features = ["product_color", "product_variation_inventory", "shipping_is_express", "origin_country",
                                 "price", "uses_ad_boosts", "rating", "merchant_rating", "merchant_rating_count",
                                 "merchant_has_profile_picture", "badge_product_quality", "has_urgency_banner"]
-        interesting_features_asuming = ["units_sold", "product_color", "product_variation_inventory",
-                                        "shipping_is_express", "origin_country", "price", "uses_ad_boosts", "rating",
-                                        "merchant_rating", "merchant_rating_count", "merchant_has_profile_picture",
-                                        "badge_product_quality", "has_urgency_banner", 'rating_count',
-                                        'rating_five_count', 'rating_four_count', 'rating_three_count',
-                                        'rating_two_count', 'rating_one_count']
+
+        else:
+            interesting_features = ["product_color", "product_variation_inventory", "shipping_is_express", "origin_country",
+                                "units_sold", "uses_ad_boosts", "rating", "merchant_rating", "merchant_rating_count",
+                                "merchant_has_profile_picture", "badge_product_quality", "has_urgency_banner"]
 
         """Acerca de las varables que no podemos controlar, hay varias con se correlacionan bastante con la cantidad vendida, cómo lo son el rating_count y  los rating_x_count, pero dado que están por fuera de nuestro control, buscamos una manera de realacionaar esas variables con los tags."""
 
@@ -37,7 +39,7 @@ class Commons:
     def plot_missing_data(df):
         columns_with_null = df.columns[df.isna().sum() > 0]
         null_pct = (df[columns_with_null].isna().sum() / df.shape[0]).sort_values(ascending=False) * 100
-        plt.figure(figsize=(8, 6));
+        plt.figure(figsize=(8, 6))
         sns.barplot(y=null_pct.index, x=null_pct, orient='h')
         plt.title('% Na values in dataframe by columns')
 
@@ -114,13 +116,15 @@ class Commons:
     *   Elemento de lista: Calculamos el promedio del promedio de las ventas de todos los tag
 
     El primer paso es crear un diccionario con todas los precios de los productos que tienen un tag especifico.
+
+    type es una variable que nos ayuda a saver sobre que se estan ejecutando
     """
 
     @staticmethod
-    def append_tags_analysis_columns(df, df_interesting):
+    def append_tags_analysis_columns(df, df_interesting, col):
         dic_tags_uts = {}
 
-        df_search = df.loc[:, ["tags", "price"]]
+        df_search = df.loc[:, ["tags", col]]
         # print(df_search)
         df_search = df_search.values
         for row in df_search:
@@ -134,7 +138,7 @@ class Commons:
                     dic_tags_uts[tag] = [units]
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- TAGS DICTIONARY ----------------------------\n" + pcolors.ENDC)
-        print(dic_tags_uts)
+        print(dic_tags_uts.keys)
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- TAGS DICTIONARY ---------------------------->>>\n\n" + pcolors.ENDC)
 
@@ -148,7 +152,7 @@ class Commons:
 
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- AVG PRICE TAGS DICTIONARY ----------------------------\n" + pcolors.ENDC)
-        print(dic_tags_uts)
+        print(dic_tags_uts.keys)
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- AVG PRICE TAGS DICTIONARY ---------------------------->>>\n\n" + pcolors.ENDC)
 
@@ -158,8 +162,9 @@ class Commons:
 
         grt_tag_price_list = []
         avrg_tag_price_list = []
+        tag_dic_vals = {}
 
-        df_search = df.loc[:, ["tags", "units_sold"]]
+        df_search = df.loc[:, ["tags", col]]
         # print(df_search)
         df_search = df_search.values
         for row in df_search:
@@ -180,12 +185,18 @@ class Commons:
             grt_tag_price_list.append(best_tag_val)
             avrg_tag_price_list.append(avrg_tag_val)
 
+        dump(dic_tags_uts, './Resources/Persistence/tagDict.joblib') 
+
         """Concatenamos las nuevas columnas al data set."""
 
         # Concatenar las nuevas columnas al data frame
-
-        df_interesting["grt_tag_price"] = grt_tag_price_list
-        df_interesting["avrg_tag_price"] = avrg_tag_price_list
+        if(col == "price"):
+            df_interesting["grt_tag_price"] = grt_tag_price_list
+            df_interesting["avrg_tag_price"] = avrg_tag_price_list
+        else:
+            df_interesting["best_tag_sales"] = grt_tag_price_list
+            df_interesting["avrg_tag_sales"] = avrg_tag_price_list
+        
 
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- RESULTING DATA SET ----------------------------\n" + pcolors.ENDC)
