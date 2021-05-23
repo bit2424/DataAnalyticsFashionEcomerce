@@ -39,7 +39,13 @@ from common import pcolors
 # drive.mount('/content/drive')
 
 class SalesModel:
+
     def __init__(self):
+        """
+        Inicializa un nuevo SalesModel, cargando el dataset del archivo csv en un dataframe de pandas.
+        Se definen dos atributos: df -> El dataset principal
+                                  df_interesting -> Las caracteristicas de interes del dataframe.
+        """
         self.df = pd.read_csv("./Resources/Datasets/summer-products.csv")
         # /summer-products-with-rating-and-performance_2020-08.csv
         print(
@@ -50,9 +56,12 @@ class SalesModel:
         # https://www.kaggle.com/jmmvutu/summer-products-and-sales-in-ecommerce-wish
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- ORIGINAL ---------------------------->>>\n\n" + pcolors.ENDC)
-        self.df_interesting = Commons.extract_interesting_features(self.df,"units_sold")
+        self.df_interesting = Commons.extract_interesting_features(self.df, "units_sold")
 
     def execute(self):
+        """
+        Ejecuta las tareas de analisis y limpieza de datos y posterior a ello evalua y entrena los mejores modelos
+        """
         Commons.plot_missing_data(self.df_interesting)
         Commons.clean(self.df_interesting)
         Commons.print_correlation_map(self.df_interesting, "units_sold")
@@ -61,30 +70,40 @@ class SalesModel:
 
         # correlation again
         Commons.print_correlation_map(self.df_interesting, 'units_sold')
-        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting,"units_sold")
+        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting, "units_sold")
         self.models_creation()
 
-    def createModel(self,X_train,y_train,X_test,y_test):
-            print(
+    def createModel(self, X_train, y_train, X_test, y_test):
+        """
+        De los mejores modelos que se encontraron para el dataset se elige entrenar un ExtraTreesRegressor
+
+        :param X_train: La entrada de entrenamiento
+        :param y_train: La salida esperada de entrenamiento
+        :param X_test: La entrada de pruebas
+        :param y_test: La salida esperada de pruebas
+        """
+        print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- Final Model evaluation ----------------------------\n" + pcolors.ENDC)
-            temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
-            temp_model.fit(X_train, y_train)
-            dump(temp_model, './Resources/Persistence/sModel.joblib') 
-            cv_results = cross_val_score(temp_model,X_test,y_test,cv=5,n_jobs=-1)
-            # output:
-            min_score = round(min(cv_results),4)
-            max_score = round(max(cv_results),4)
-            mean_score = round(np.mean(cv_results),4)
-            std_dev = round(np.std(cv_results),4)
-            print(f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
+        temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
+        temp_model.fit(X_train, y_train)
+        dump(temp_model, './Resources/Persistence/sModel.joblib')
+        cv_results = cross_val_score(temp_model, X_test, y_test, cv=5, n_jobs=-1)
+        # output:
+        min_score = round(min(cv_results), 4)
+        max_score = round(max(cv_results), 4)
+        mean_score = round(np.mean(cv_results), 4)
+        std_dev = round(np.std(cv_results), 4)
+        print(
+            f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
 
     def models_creation(self):
-        """# Creación de modelos
+        """
+        Creación y evaluación de modelos
 
         Lo primero es seperar el dataset en tres:
-        *   Conjunto de entrenamiento
-        *   Conjunto de selección de hiper parametros
-        *   Conjunto de prueba
+            *   Conjunto de entrenamiento
+            *   Conjunto de selección de hiper parametros
+            *   Conjunto de prueba
         """
 
         X = self.df_interesting.drop(['units_sold'], axis=1)
@@ -190,10 +209,6 @@ class SalesModel:
         """
         """Al final evaluamos el mejor modelo con los datos de testing, para ver cómo nos va. """
 
-        
-        self.createModel(X_train,y_train,X_test,y_test)
-        
+        self.createModel(X_train, y_train, X_test, y_test)
 
         """El modelo tuvo un resultado que todavía puede mejorar, somos capaces de predecir la cantidad vendida adecuada casí un 40% de las veces, si bien no es ideal es una guia bastante buena que pude seguir mejorando."""
-        
-        

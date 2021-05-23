@@ -39,6 +39,12 @@ from common import pcolors
 
 class PriceModel:
     def __init__(self):
+        """
+        Inicializa un nuevo PriceModel, cargando el dataset del archivo csv en un dataframe de pandas.
+        Se definen dos atributos:
+            * df -> El dataset principal
+            * df_interesting -> Las caracteristicas de interes del dataframe.
+        """
         # df = pd.read_csv("/content/drive/MyDrive/Proyecto Final IA/summer-products-with-rating-and-performance_2020-08.csv")
         self.df = pd.read_csv("./Resources/Datasets/summer-products.csv")
         # /summer-products-with-rating-and-performance_2020-08.csv
@@ -50,9 +56,12 @@ class PriceModel:
         # https://www.kaggle.com/jmmvutu/summer-products-and-sales-in-ecommerce-wish
         print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "   ---------------------------- ORIGINAL ---------------------------->>>\n\n" + pcolors.ENDC)
-        self.df_interesting = Commons.extract_interesting_features(self.df,"price")
+        self.df_interesting = Commons.extract_interesting_features(self.df, "price")
 
     def execute(self):
+        """
+        Ejecuta las tareas de analisis y limpieza de datos y posterior a ello evalua y entrena los mejores modelos
+        """
         Commons.plot_missing_data(self.df_interesting)
         Commons.clean(self.df_interesting)
         """Para ver la calidad de las variables que escogimos decidimos ver el indice de correlación que tienen respecto al precio de venta."""
@@ -61,31 +70,44 @@ class PriceModel:
         self.df_interesting = Commons.one_hot_encode(self.df_interesting)
         # correlation again
         Commons.print_correlation_map(self.df_interesting, 'price')
-        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting,"price")
+        self.df, self.df_interesting = Commons.append_tags_analysis_columns(self.df, self.df_interesting, "price")
         self.models_creation(self.df_interesting, 'price')
-        """# Identificar una lista de atributos a utilizar:
-        
-    Despues de realizar el EDA y de reflexionar acerca de que atributos podemos controlar realmente seleccionamos una lista de atributos con potencial de ser utilizados:
 
-    title,title_orig,price,retail_price,currency_buyer,uses_ad_boosts,tags,product_color,product_variation_size_id,product_variation_inventory,
-    shipping_option_name,shipping_option_price,shipping_is_express,countries_shipped_to,inventory_total,origin_country,merchant_title,merchant_name,
-    merchant_info_subtitle,merchant_has_profile_picture,merchant_profile_picture,product_picture
-    """
-    def createModel(self,X_train,y_train,X_test,y_test):
-            print(
+    def create_model(self, X_train, y_train, X_test, y_test):
+        """
+        De los mejores modelos que se encontraron para el dataset se elige entrenar un ExtraTreesRegressor
+
+        :param X_train: La entrada de entrenamiento
+        :param y_train: La salida esperada de entrenamiento
+        :param X_test: La entrada de pruebas
+        :param y_test: La salida esperada de pruebas
+        """
+        print(
             pcolors.OKGREEN + pcolors.UNDERLINE + pcolors.BOLD + "<<<---------------------------- Final Model evaluation ----------------------------\n" + pcolors.ENDC)
-            temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
-            temp_model.fit(X_train, y_train)
-            dump(temp_model, './Resources/Persistence/pModel.joblib') 
-            cv_results = cross_val_score(temp_model,X_test,y_test,cv=5,n_jobs=-1)
-            # output:
-            min_score = round(min(cv_results),4)
-            max_score = round(max(cv_results),4)
-            mean_score = round(np.mean(cv_results),4)
-            std_dev = round(np.std(cv_results),4)
-            print(f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
+        temp_model = ExtraTreesRegressor(n_estimators=30, random_state=self.random_seed)
+        temp_model.fit(X_train, y_train)
+        dump(temp_model, './Resources/Persistence/pModel.joblib')
+        cv_results = cross_val_score(temp_model, X_test, y_test, cv=5, n_jobs=-1)
+        # output:
+        min_score = round(min(cv_results), 4)
+        max_score = round(max(cv_results), 4)
+        mean_score = round(np.mean(cv_results), 4)
+        std_dev = round(np.std(cv_results), 4)
+        print(
+            f'{"ETR"} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
 
     def models_creation(self, df, col):
+        """
+        Creación y evaluación de modelos
+
+        Lo primero es seperar el dataset en tres:
+            *   Conjunto de entrenamiento
+            *   Conjunto de selección de hiper parametros
+            *   Conjunto de prueba
+
+        :param df: El dataframe que sobre el que se harán los modelos
+        :param col: La columna de interes del dataframe
+        """
         X = df.drop([col], axis=1)
         Y = df[col].astype(int)
         trainig_size = 0.6
@@ -95,7 +117,6 @@ class PriceModel:
                                                             shuffle=True)
         X_test, X_test_hp, y_test, y_test_hp = train_test_split(X, Y, test_size=0.5, random_state=self.random_seed,
                                                                 shuffle=True)
-
 
         """En esta etapa escogemos algunos modelos que queremos entrenar y ver cómo se comportan con los datos de entrada.
 
@@ -144,7 +165,6 @@ class PriceModel:
         # std_dev = round(np.std(cv_results),4)
         # print(f'{name} cross validation accuracy score:{mean_score} +- {std_dev} (std) min:{min_score},max:{max_score}')
 
-
         x_vals = []
         y_scores = []
         # X_test.drop("prediction",axis=1)
@@ -161,7 +181,7 @@ class PriceModel:
         print(X_test_hp.columns)
         print(temp_model.feature_importances_)
 
-        self.createModel(X_train,y_train,X_test,y_test)
+        self.create_model(X_train, y_train, X_test, y_test)
 
         """
         x_vals = []
@@ -211,5 +231,3 @@ class PriceModel:
         self.createModel(X_train,y_train,X_test,y_test)
         """
         """El modelo tuvo un resultado decente, que todavía puede mejorar, somos capaces de predecir el precio para un producto de manera adecuada casí un 60% de las veces, es una muestra de que vamos por buen camino y que podemos aportarle valor a wish."""
-
-        
